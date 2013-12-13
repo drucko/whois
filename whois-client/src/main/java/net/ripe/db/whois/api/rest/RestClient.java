@@ -3,6 +3,7 @@ package net.ripe.db.whois.api.rest;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.jaxrs.json.JacksonJaxbJsonProvider;
 import com.google.common.base.Function;
+import com.google.common.base.Splitter;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 import net.ripe.db.whois.api.rest.domain.AbuseContact;
@@ -33,7 +34,9 @@ import javax.ws.rs.core.MediaType;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 @Component
 public class RestClient {
@@ -280,9 +283,19 @@ public class RestClient {
 
     private static RuntimeException createException(final ClientErrorException e) {
         try {
-            final WhoisResources whoisResources = e.getResponse().readEntity(WhoisResources.class);
-            return new RestClientException(whoisResources.getErrorMessages());
-        } catch (ProcessingException | IllegalStateException e1) {
+            //Temporary workaround for the abice_c form to show messages properly
+            final String response = e.getResponse().readEntity(String.class);
+            Splitter NEWLINE_SPLITTER = Splitter.on(Pattern.compile("\\n"));
+            Iterable<String> errors = NEWLINE_SPLITTER.split(response);
+            List<ErrorMessage> messages = Lists.newArrayList();
+            for (String error : errors) {
+                if(StringUtils.isNotBlank(error)){
+                    messages.add(new ErrorMessage(Messages.Type.ERROR.toString(), null, error, null));
+                }
+            }
+            return new RestClientException(messages);
+        //TODO: This is bad, bad it is just temporary
+        } catch (Exception e1) {
             return createExceptionFromMessage(e);
         }
     }
